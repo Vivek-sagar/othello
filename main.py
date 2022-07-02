@@ -22,15 +22,15 @@ assert TEAM_NAME != "Team Name", "Please change your TEAM_NAME!"
 class SimpleCNN(torch.nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        self.conv1 = torch.nn.Conv2d(1, 16, kernel_size = 3)
-        self.conv2 = torch.nn.Conv2d(16, 32, kernel_size = 3)
+        self.conv1 = torch.nn.Conv2d(1, 32, kernel_size = 3)
+        self.conv2 = torch.nn.Conv2d(32, 32, kernel_size = 3)
         self.fc1 = torch.nn.Linear(128, 64)
         self.fc2 = torch.nn.Linear(64, 1)
         self.relu1 = torch.nn.ReLU()
         self.relu2 = torch.nn.ReLU()
         self.do1 = torch.nn.Dropout(0.1)
         self.do2 = torch.nn.Dropout(0.1)
-        self.do3 = torch.nn.Dropout(0.1)
+        self.do3 = torch.nn.Dropout(0.2)
 
     def forward(self, x):
         x = self.relu1(self.conv1(x))
@@ -43,7 +43,7 @@ class SimpleCNN(torch.nn.Module):
         x = self.fc2(x)
         return(x)
 
-epsilon = 0.3
+epsilon = 0
 alpha = 0.1
 gamma = 0.95
 delta = 0
@@ -57,8 +57,8 @@ def train() -> nn.Module:
         this however you like but your choose_move function must be able
         to use it.
     """
-    net = SimpleCNN()
-    # net = load_network(TEAM_NAME)
+    # net = SimpleCNN()
+    net = load_network(TEAM_NAME)
     env = OthelloEnv()
     # print("Weights before training (randomly initialised):\n", net.state_dict())
 
@@ -66,10 +66,13 @@ def train() -> nn.Module:
     loss_fn = nn.MSELoss()
 
     # Optimizer
-    optimizer = torch.optim.Adam(net.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(net.parameters(), lr=1e-5)
+
     cum_loss = 0
+    
     for i in range(100000):
-        
+        total_loss = 0
+        num_turns = 0
         state, reward, done, info = env.reset()
         while not done:
             ep = random.choices([0, 1], [epsilon * 10, (1 - epsilon) * 10])
@@ -79,26 +82,46 @@ def train() -> nn.Module:
                 action = choose_move(state, net)
             new_state, reward, done, _ = env.step(action)
             old_state_value = net.forward(torch.Tensor(np.expand_dims(state, 0)))
-            new_state_value = alpha * (reward + gamma*net.forward(torch.Tensor(np.expand_dims(new_state, 0)))-old_state_value )
+            old_state_new_value = alpha * (reward + gamma*net.forward(torch.Tensor(np.expand_dims(new_state, 0)))-old_state_value )
             state = new_state
         
-        # Calculate the loss of the network at this point in time over all the data
-        loss = loss_fn(old_state_value, new_state_value)
+            # Calculate the loss of the network at this point in time over all the data
+            loss = loss_fn(old_state_value, old_state_new_value)
+            total_loss += loss
+            num_turns += 1
+
+            # Reset the gradient in the optimizer
+            optimizer.zero_grad()
+
+            # Use the loss function to figure out the direction to move the parameters
+            loss.backward()
+            
+            # Update parameters to reduce loss function (and improve the network!)
+            optimizer.step()
         
-        # Reset the gradient in the optimizer
-        optimizer.zero_grad()
+        # new_state_value = net.forward(torch.Tensor(np.expand_dims(state, 0)))
         
-        # Use the loss function to figure out the direction to move the parameters
-        loss.backward()
-        if (i%100 == 0):
-            print (cum_loss/100)
+        # # Calculate the loss of the network at this point in time over all the data
+        # loss = loss_fn(new_state_value, torch.Tensor([[reward]]))
+        # total_loss += loss
+        # num_turns += 1
+
+        # # Reset the gradient in the optimizer
+        # optimizer.zero_grad()
+
+        # # Use the loss function to figure out the direction to move the parameters
+        # loss.backward()
+        
+        # # Update parameters to reduce loss function (and improve the network!)
+        # optimizer.step()
+
+        if (i%100==0):
+            print (cum_loss)
             cum_loss = 0
             save_network(net, TEAM_NAME)
         else:
-            cum_loss += loss
-        
-        # Update parameters to reduce loss function (and improve the network!)
-        optimizer.step()
+            cum_loss += total_loss/num_turns
+         
     return net
 
 def choose_move(state: np.ndarray,
@@ -148,8 +171,8 @@ def choose_move(state: np.ndarray,
 if __name__ == "__main__":
 
     ## Example workflow, feel free to edit this! ###
-    # my_network = train()
-    # save_network(my_network, TEAM_NAME)
+    my_network = train()
+    save_network(my_network, TEAM_NAME)
     my_network = load_network(TEAM_NAME)
     print (my_network)
 
@@ -168,10 +191,10 @@ if __name__ == "__main__":
     play_othello_game(
         your_choose_move=choose_move_no_value_fn,
         opponent_choose_move=choose_move_randomly,
-        game_speed_multiplier=1,
+        game_speed_multiplier=10,
         render=True,
         verbose=True,
     )
 
     # Uncomment line below to check your submission works
-    # check_submission()
+    check_submission()

@@ -22,18 +22,24 @@ assert TEAM_NAME != "Team Name", "Please change your TEAM_NAME!"
 class SimpleCNN(torch.nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        self.conv1 = torch.nn.Conv2d(1, 8, kernel_size = 3)
-        self.conv2 = torch.nn.Conv2d(8, 16, kernel_size = 3)
-        self.fc1 = torch.nn.Linear(64, 128)
-        self.fc2 = torch.nn.Linear(128, 1)
+        self.conv1 = torch.nn.Conv2d(1, 16, kernel_size = 3)
+        self.conv2 = torch.nn.Conv2d(16, 32, kernel_size = 3)
+        self.fc1 = torch.nn.Linear(128, 64)
+        self.fc2 = torch.nn.Linear(64, 1)
         self.relu1 = torch.nn.ReLU()
         self.relu2 = torch.nn.ReLU()
+        self.do1 = torch.nn.Dropout(0.1)
+        self.do2 = torch.nn.Dropout(0.1)
+        self.do3 = torch.nn.Dropout(0.1)
 
     def forward(self, x):
         x = self.relu1(self.conv1(x))
+        x = self.do1(x)
         x = self.relu2(self.conv2(x))
-        x = x.view(1, 64)
+        x = self.do2(x)
+        x = x.view(1, 128)
         x = nn.functional.relu(self.fc1(x))
+        x = self.do3(x)
         x = self.fc2(x)
         return(x)
 
@@ -52,6 +58,7 @@ def train() -> nn.Module:
         to use it.
     """
     net = SimpleCNN()
+    # net = load_network(TEAM_NAME)
     env = OthelloEnv()
     # print("Weights before training (randomly initialised):\n", net.state_dict())
 
@@ -59,9 +66,9 @@ def train() -> nn.Module:
     loss_fn = nn.MSELoss()
 
     # Optimizer
-    optimizer = torch.optim.SGD(net.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(net.parameters(), lr=1e-4)
     cum_loss = 0
-    for i in range(10000):
+    for i in range(100000):
         
         state, reward, done, info = env.reset()
         while not done:
@@ -86,6 +93,7 @@ def train() -> nn.Module:
         if (i%100 == 0):
             print (cum_loss/100)
             cum_loss = 0
+            save_network(net, TEAM_NAME)
         else:
             cum_loss += loss
         
@@ -123,7 +131,7 @@ def choose_move(state: np.ndarray,
 
     for move in legal_moves:
         state_copy = state.copy()
-        state_copy[move[0]][move[1]] = 1
+        make_move(state_copy, move)
 
         # print (torch.Tensor(state_copy))
         state_copy = np.expand_dims(state_copy, 0)
@@ -140,8 +148,8 @@ def choose_move(state: np.ndarray,
 if __name__ == "__main__":
 
     ## Example workflow, feel free to edit this! ###
-    my_network = train()
-    save_network(my_network, TEAM_NAME)
+    # my_network = train()
+    # save_network(my_network, TEAM_NAME)
     my_network = load_network(TEAM_NAME)
     print (my_network)
 

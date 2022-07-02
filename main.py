@@ -57,8 +57,8 @@ def train() -> nn.Module:
         this however you like but your choose_move function must be able
         to use it.
     """
-    net = SimpleCNN()
-    # net = load_network(TEAM_NAME)
+    # net = SimpleCNN()
+    net = load_network(TEAM_NAME)
     env = OthelloEnv()
     # print("Weights before training (randomly initialised):\n", net.state_dict())
 
@@ -66,8 +66,9 @@ def train() -> nn.Module:
     loss_fn = nn.MSELoss()
 
     # Optimizer
-    optimizer = torch.optim.Adam(net.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(net.parameters(), lr=1e-5)
     cum_loss = 0
+    count = 0
     for i in range(100000):
         
         state, reward, done, info = env.reset()
@@ -79,26 +80,40 @@ def train() -> nn.Module:
                 action = choose_move(state, net)
             new_state, reward, done, _ = env.step(action)
             old_state_value = net.forward(torch.Tensor(np.expand_dims(state, 0)))
-            new_state_value = alpha * (reward + gamma*net.forward(torch.Tensor(np.expand_dims(new_state, 0)))-old_state_value )
+            old_state_new_value = (reward + gamma*net.forward(torch.Tensor(np.expand_dims(new_state, 0)))-old_state_value )
             state = new_state
         
-        # Calculate the loss of the network at this point in time over all the data
-        loss = loss_fn(old_state_value, new_state_value)
+            # Calculate the loss of the network at this point in time over all the data
+            loss = loss_fn(old_state_value, old_state_new_value)
+            
+            # Reset the gradient in the optimizer
+            optimizer.zero_grad()
+            
+            # Use the loss function to figure out the direction to move the parameters
+            loss.backward()
+
+            optimizer.step()
+
+            if (count%1000 == 0):
+                print (cum_loss/1000)
+                cum_loss = 0
+                save_network(net, TEAM_NAME)
+            else:
+                cum_loss += loss
+            count+=1
+
+        # # Backprop the final reward
+        # final_state_value = net.forward(torch.Tensor(np.expand_dims(state, 0)))
+        # # Calculate the loss of the network at this point in time over all the data
+        # loss = loss_fn(final_state_value, torch.Tensor([[reward]]))
+        # # Reset the gradient in the optimizer
+        # optimizer.zero_grad()
+        # # Use the loss function to figure out the direction to move the parameters
+        # loss.backward()
         
-        # Reset the gradient in the optimizer
-        optimizer.zero_grad()
-        
-        # Use the loss function to figure out the direction to move the parameters
-        loss.backward()
-        if (i%100 == 0):
-            print (cum_loss/100)
-            cum_loss = 0
-            save_network(net, TEAM_NAME)
-        else:
-            cum_loss += loss
-        
-        # Update parameters to reduce loss function (and improve the network!)
-        optimizer.step()
+        # # Update parameters to reduce loss function (and improve the network!)
+        # optimizer.step()
+
     return net
 
 def choose_move(state: np.ndarray,
@@ -148,15 +163,15 @@ def choose_move(state: np.ndarray,
 if __name__ == "__main__":
 
     ## Example workflow, feel free to edit this! ###
-    # my_network = train()
-    # save_network(my_network, TEAM_NAME)
+    my_network = train()
+    save_network(my_network, TEAM_NAME)
     my_network = load_network(TEAM_NAME)
-    print (my_network)
+    my_network_2 = load_network(TEAM_NAME+"2")
 
     # Code below plays a single game of Connect 4 against a random
     #  opponent, think about how you might want to adapt this to
     #  test the performance of your algorithm.
-    def choose_move_no_value_fn(
+    def choose_move_1_no_value_fn(
             state: np.ndarray) -> Optional[Tuple[int, int]]:
         """The arguments in play_connect_4_game() require functions that only take the state as
         input.
@@ -165,10 +180,19 @@ if __name__ == "__main__":
         """
         return choose_move(state, my_network, False)
 
+    def choose_move_2_no_value_fn(
+            state: np.ndarray) -> Optional[Tuple[int, int]]:
+        """The arguments in play_connect_4_game() require functions that only take the state as
+        input.
+
+        This converts choose_move() to that format.
+        """
+        return choose_move(state, my_network_2, False)
+
     play_othello_game(
-        your_choose_move=choose_move_no_value_fn,
+        your_choose_move=choose_move_2_no_value_fn,
         opponent_choose_move=choose_move_randomly,
-        game_speed_multiplier=1,
+        game_speed_multiplier=10,
         render=True,
         verbose=True,
     )

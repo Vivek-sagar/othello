@@ -22,25 +22,29 @@ assert TEAM_NAME != "Team Name", "Please change your TEAM_NAME!"
 class SimpleCNN(torch.nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        self.conv1 = torch.nn.Conv2d(1, 32, kernel_size = 3)
-        self.conv2 = torch.nn.Conv2d(32, 32, kernel_size = 3)
-        self.fc1 = torch.nn.Linear(128, 64)
-        self.fc2 = torch.nn.Linear(64, 1)
+        self.conv1 = torch.nn.Conv2d(1, 64, kernel_size = 2)
+        self.conv2 = torch.nn.Conv2d(64, 32, kernel_size = 2)
+        self.fc1 = torch.nn.Linear(16*32, 128)
+        self.fc2 = torch.nn.Linear(128, 64)
+        self.fc3 = torch.nn.Linear(64, 1)
         self.relu1 = torch.nn.ReLU()
         self.relu2 = torch.nn.ReLU()
         self.do1 = torch.nn.Dropout(0.1)
         self.do2 = torch.nn.Dropout(0.1)
-        self.do3 = torch.nn.Dropout(0.2)
+        self.do3 = torch.nn.Dropout(0.1)
+        self.do4 = torch.nn.Dropout(0.1)
 
     def forward(self, x):
         x = self.relu1(self.conv1(x))
         x = self.do1(x)
         x = self.relu2(self.conv2(x))
         x = self.do2(x)
-        x = x.view(1, 128)
+        x = x.view(1, 16*32)
         x = nn.functional.relu(self.fc1(x))
         x = self.do3(x)
-        x = self.fc2(x)
+        x = nn.functional.relu(self.fc2(x))
+        x = self.do4(x)
+        x = self.fc3(x)
         return(x)
 
 epsilon = 0
@@ -70,7 +74,7 @@ def train() -> nn.Module:
 
     cum_loss = 0
     
-    for i in range(100000):
+    for i in range(1000000):
         total_loss = 0
         num_turns = 0
         state, reward, done, info = env.reset()
@@ -99,21 +103,21 @@ def train() -> nn.Module:
             # Update parameters to reduce loss function (and improve the network!)
             optimizer.step()
         
-        # new_state_value = net.forward(torch.Tensor(np.expand_dims(state, 0)))
+        new_state_value = net.forward(torch.Tensor(np.expand_dims(state, 0)))
         
-        # # Calculate the loss of the network at this point in time over all the data
-        # loss = loss_fn(new_state_value, torch.Tensor([[reward]]))
-        # total_loss += loss
-        # num_turns += 1
+        # Calculate the loss of the network at this point in time over all the data
+        loss = loss_fn(new_state_value, torch.Tensor([[reward]]))
+        total_loss += loss
+        num_turns += 1
 
-        # # Reset the gradient in the optimizer
-        # optimizer.zero_grad()
+        # Reset the gradient in the optimizer
+        optimizer.zero_grad()
 
-        # # Use the loss function to figure out the direction to move the parameters
-        # loss.backward()
+        # Use the loss function to figure out the direction to move the parameters
+        loss.backward()
         
-        # # Update parameters to reduce loss function (and improve the network!)
-        # optimizer.step()
+        # Update parameters to reduce loss function (and improve the network!)
+        optimizer.step()
 
         if (i%100==0):
             print (cum_loss)
@@ -171,8 +175,8 @@ def choose_move(state: np.ndarray,
 if __name__ == "__main__":
 
     ## Example workflow, feel free to edit this! ###
-    my_network = train()
-    save_network(my_network, TEAM_NAME)
+    # my_network = train()
+    # save_network(my_network, TEAM_NAME)
     my_network = load_network(TEAM_NAME)
     print (my_network)
 
